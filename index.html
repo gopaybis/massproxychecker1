@@ -10,7 +10,9 @@
       font-family: 'Courier New', monospace;
       padding: 20px;
     }
-    h2 { color: #00e676; }
+    h2 {
+      color: #00e676;
+    }
     textarea, input[type="file"] {
       background-color: #1e1e1e;
       color: #fff;
@@ -32,7 +34,9 @@
       cursor: pointer;
       transition: background-color 0.3s;
     }
-    button:hover { background-color: #00838f; }
+    button:hover {
+      background-color: #00838f;
+    }
     table {
       width: 100%;
       margin-top: 20px;
@@ -51,8 +55,14 @@
       border-bottom: 1px solid #333;
       color: #e0e0e0;
     }
-    .green { color: #69f0ae; font-weight: bold; }
-    .red { color: #ff5252; font-weight: bold; }
+    .green {
+      color: #69f0ae;
+      font-weight: bold;
+    }
+    .red {
+      color: #ff5252;
+      font-weight: bold;
+    }
     ::file-selector-button {
       background: #444;
       color: white;
@@ -95,7 +105,7 @@
   </table>
 
   <script>
-    const apiURL = "https://proxy-cebu.vercel.app"; // 🔄 Ganti dengan endpoint Cloudflare Worker kamu jika tidak pakai vercel
+    const apiUrl = "https://prx.revip.workers.dev/";
 
     window.onload = function () {
       const saved = localStorage.getItem('proxy_results');
@@ -164,7 +174,7 @@
 
         setTimeout(async () => {
           try {
-            const res = await fetch(apiURL, {
+            const res = await fetch(apiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ ip, port })
@@ -185,6 +195,7 @@
             orgCell.textContent = data.asOrganization || '-';
             protoCell.textContent = data.httpProtocol || '-';
             delayCell.textContent = data.delay || '-';
+
           } catch {
             statusCell.textContent = 'Error';
             statusCell.className = 'red';
@@ -193,6 +204,7 @@
 
           document.getElementById('active').textContent = stats.active;
           document.getElementById('inactive').textContent = stats.inactive;
+
           saveResultsToLocalStorage();
           row.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }, 200 * i);
@@ -212,7 +224,11 @@
             country || '-',
             cells[5].textContent || '-'
           ].join(',');
-        }).sort((a, b) => a.split(',')[2].localeCompare(b.split(',')[2]));
+        }).sort((a, b) => {
+          const aCode = a.split(',')[2] || '';
+          const bCode = b.split(',')[2] || '';
+          return aCode.localeCompare(bCode);
+        });
     }
 
     function copyToClipboard() {

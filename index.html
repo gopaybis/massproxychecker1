@@ -1,94 +1,67 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Proxy Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🔥 Proxy Checker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      background-color: #121212;
-      color: #e0e0e0;
-      font-family: 'Courier New', monospace;
-      padding: 20px;
+      background-color: #111;
+      color: #eee;
+      font-family: monospace;
     }
-    h2 {
-      color: #00e676;
-    }
-    textarea, input[type="file"] {
-      background-color: #1e1e1e;
-      color: #fff;
-      border: 1px solid #444;
-      border-radius: 6px;
-      padding: 10px;
+    textarea {
       width: 100%;
-      margin-top: 10px;
-      font-size: 16px;
-    }
-    button {
-      background-color: #00acc1;
-      border: none;
-      color: white;
-      padding: 10px 20px;
-      margin: 10px 10px 0 0;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background-color 0.3s;
-    }
-    button:hover {
-      background-color: #00838f;
+      height: 120px;
+      background: #000;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 8px;
     }
     table {
       width: 100%;
-      margin-top: 20px;
       border-collapse: collapse;
-      background-color: #1e1e1e;
-      border-radius: 6px;
-      overflow: hidden;
+      margin-top: 16px;
+      background-color: #1c1c1c;
+    }
+    th, td {
+      border: 1px solid #333;
+      padding: 6px;
+      text-align: center;
     }
     th {
-      background-color: #263238;
-      color: #ffffff;
-      padding: 10px;
+      background-color: #222;
     }
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #333;
-      color: #e0e0e0;
+    .active {
+      color: #0f0;
     }
-    .green {
-      color: #69f0ae;
-      font-weight: bold;
+    .inactive {
+      color: #f00;
     }
-    .red {
-      color: #ff5252;
-      font-weight: bold;
-    }
-    ::file-selector-button {
-      background: #444;
-      color: white;
-      border: none;
+    .btn {
+      background: #00bcd4;
+      color: black;
       padding: 6px 12px;
-      border-radius: 4px;
+      border: none;
+      border-radius: 6px;
+      margin: 4px;
       cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h2>🔥 Proxy Checker</h2>
-  <textarea id="input" rows="6" placeholder="Masukkan proxy manual, contoh: IP:PORT\n..."></textarea>
-  <input type="file" id="fileInput" multiple accept=".txt" /><br/>
-  <button onclick="loadFromFiles()">Gabungkan Dari File</button>
-  <button onclick="startCheck()">Mulai Cek</button>
-  <button onclick="copyToClipboard()">Salin Proxy Aktif</button>
-  <button onclick="downloadTxt()">Unduh .txt</button>
-
-  <div id="stats" style="margin-top: 20px; font-size: 16px;">
-    <b>Total:</b> <span id="total">0</span> |
-    <b>Active:</b> <span id="active">0</span> |
-    <b>Inactive:</b> <span id="inactive">0</span>
-  </div>
-
-  <table>
+  <h3>🔥 Proxy Checker</h3>
+  <textarea id="proxyInput" placeholder="IP:PORT satu per baris"></textarea>
+  <br />
+  <input type="file" id="fileInput" multiple />
+  <br />
+  <button class="btn" onclick="mergeFromFile()">Gabungkan Dari File</button>
+  <button class="btn" onclick="startChecking()">Mulai Cek</button>
+  <button class="btn" onclick="copyActive()">Salin Proxy Aktif</button>
+  <button class="btn" onclick="downloadActive()">Unduh .txt</button>
+  <div id="stats">Total: 0 | Active: 0 | Inactive: 0</div>
+  <table id="resultTable">
     <thead>
       <tr>
         <th>No</th>
@@ -101,148 +74,88 @@
         <th>Delay</th>
       </tr>
     </thead>
-    <tbody id="result"></tbody>
+    <tbody></tbody>
   </table>
 
   <script>
-    const apiUrl = "https://prx.revip.workers.dev/";
+    const API_URL = "https://prx.revip.workers.dev/";
+    let activeList = [];
 
-    window.onload = function () {
-      const saved = localStorage.getItem('proxy_results');
-      if (saved) document.getElementById('result').innerHTML = saved;
-
-      const stats = JSON.parse(localStorage.getItem('proxy_stats') || '{}');
-      document.getElementById('total').textContent = stats.total || 0;
-      document.getElementById('active').textContent = stats.active || 0;
-      document.getElementById('inactive').textContent = stats.inactive || 0;
-    }
-
-    function saveResultsToLocalStorage() {
-      localStorage.setItem('proxy_results', document.getElementById('result').innerHTML);
-      localStorage.setItem('proxy_stats', JSON.stringify({
-        total: document.getElementById('total').textContent,
-        active: document.getElementById('active').textContent,
-        inactive: document.getElementById('inactive').textContent
-      }));
-    }
-
-    async function loadFromFiles() {
+    function mergeFromFile() {
       const files = document.getElementById('fileInput').files;
-      if (!files.length) return alert("Pilih minimal 1 file .txt");
-      let allText = document.getElementById('input').value.trim();
-
-      for (const file of files) {
-        const text = await file.text();
-        allText += '\n' + text.trim();
-      }
-
-      document.getElementById('input').value = allText.trim();
-      alert('Semua isi file berhasil digabung ke dalam textarea!');
+      const reader = new FileReader();
+      let content = "";
+      const readFiles = (index) => {
+        if (index >= files.length) {
+          document.getElementById('proxyInput').value += "\n" + content;
+          return;
+        }
+        reader.onload = (e) => {
+          content += e.target.result + "\n";
+          readFiles(index + 1);
+        };
+        reader.readAsText(files[index]);
+      };
+      readFiles(0);
     }
 
-    async function startCheck() {
-      const inputEl = document.getElementById('input');
-      const result = document.getElementById('result');
-      const stats = { total: 0, active: 0, inactive: 0 };
+    async function startChecking() {
+      const list = document.getElementById('proxyInput').value.trim().split("\n").map(l => l.trim()).filter(Boolean);
+      const unique = [...new Set(list)];
+      const tbody = document.querySelector("#resultTable tbody");
+      tbody.innerHTML = "";
+      activeList = [];
+      let active = 0, inactive = 0;
 
-      const lines = Array.from(new Set(
-        inputEl.value.trim().split('\n').map(x => x.trim()).filter(Boolean)
-      ));
+      for (let i = 0; i < unique.length; i++) {
+        const [ip, port] = unique[i].split(":");
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${i+1}</td><td>${ip}</td><td>${port}</td><td>Checking...</td><td>-</td><td>-</td><td>-</td><td>-</td>`;
+        tbody.appendChild(row);
 
-      inputEl.value = lines.join('\n');
-      result.innerHTML = '';
-      document.getElementById('total').textContent = lines.length;
-      document.getElementById('active').textContent = '0';
-      document.getElementById('inactive').textContent = '0';
+        try {
+          const res = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ip, port })
+          });
+          const data = await res.json();
 
-      for (let i = 0; i < lines.length; i++) {
-        const [ip, port] = lines[i].split(':');
-        if (!ip || !port) continue;
-
-        const row = result.insertRow();
-        row.insertCell().textContent = i + 1;
-        row.insertCell().textContent = ip;
-        row.insertCell().textContent = port;
-
-        const statusCell = row.insertCell();
-        const countryCell = row.insertCell();
-        const orgCell = row.insertCell();
-        const protoCell = row.insertCell();
-        const delayCell = row.insertCell();
-
-        statusCell.textContent = '...';
-
-        setTimeout(async () => {
-          try {
-            const res = await fetch(apiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ip, port })
-            });
-            const data = await res.json();
-
-            if (data.proxyip) {
-              statusCell.textContent = 'Active';
-              statusCell.className = 'green';
-              stats.active++;
-            } else {
-              statusCell.textContent = 'Inactive';
-              statusCell.className = 'red';
-              stats.inactive++;
-            }
-
-            countryCell.textContent = (data.countryCode || '-') + ' ' + (data.countryFlag || '');
-            orgCell.textContent = data.asOrganization || '-';
-            protoCell.textContent = data.httpProtocol || '-';
-            delayCell.textContent = data.delay || '-';
-
-          } catch {
-            statusCell.textContent = 'Error';
-            statusCell.className = 'red';
-            stats.inactive++;
+          if (data.proxyip) {
+            row.cells[3].innerHTML = '<span class="active">Active</span>';
+            row.cells[4].innerText = data.countryCode || "-";
+            row.cells[5].innerText = data.asOrganization || "-";
+            row.cells[6].innerText = data.httpProtocol || "-";
+            row.cells[7].innerText = data.delay || "-";
+            activeList.push(`${ip},${port},${data.countryCode},${data.asOrganization}`);
+            active++;
+          } else {
+            row.cells[3].innerHTML = '<span class="inactive">Inactive</span>';
+            inactive++;
           }
+        } catch (err) {
+          row.cells[3].innerHTML = '<span class="inactive">Error</span>';
+          inactive++;
+        }
 
-          document.getElementById('active').textContent = stats.active;
-          document.getElementById('inactive').textContent = stats.inactive;
-
-          saveResultsToLocalStorage();
-          row.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }, 200 * i);
+        document.getElementById("stats").innerText = `Total: ${unique.length} | Active: ${active} | Inactive: ${inactive}`;
       }
     }
 
-    function getActiveProxies() {
-      const rows = Array.from(document.querySelectorAll('#result tr'));
-      return rows
-        .filter(r => r.querySelector('.green'))
-        .map(r => {
-          const cells = r.querySelectorAll('td');
-          const country = (cells[4].textContent || '').split(' ')[0];
-          return [
-            cells[1].textContent,
-            cells[2].textContent,
-            country || '-',
-            cells[5].textContent || '-'
-          ].join(',');
-        }).sort((a, b) => {
-          const aCode = a.split(',')[2] || '';
-          const bCode = b.split(',')[2] || '';
-          return aCode.localeCompare(bCode);
-        });
+    function copyActive() {
+      const sorted = activeList.sort((a, b) => a.split(',')[2].localeCompare(b.split(',')[2]));
+      navigator.clipboard.writeText(sorted.join("\n")).then(() => alert("Disalin!"));
     }
 
-    function copyToClipboard() {
-      const proxies = getActiveProxies().join('\n');
-      navigator.clipboard.writeText(proxies).then(() => alert('Disalin ke clipboard!'));
-    }
-
-    function downloadTxt() {
-      const proxies = getActiveProxies().join('\n');
-      const blob = new Blob([proxies], { type: 'text/plain' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'active_proxies.txt';
+    function downloadActive() {
+      const sorted = activeList.sort((a, b) => a.split(',')[2].localeCompare(b.split(',')[2]));
+      const blob = new Blob([sorted.join("\n")], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "proxy_aktif.txt";
       a.click();
+      URL.revokeObjectURL(url);
     }
   </script>
 </body>
